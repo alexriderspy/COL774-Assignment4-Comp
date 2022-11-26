@@ -25,6 +25,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 directory = '/kaggle/input/col774-2022/'
 dataframe_x = pd.read_csv(os.path.join(directory,'train_x.csv'))
 dataframe_y = pd.read_csv(os.path.join(directory, 'train_y.csv'))
+dataframe_val_x = pd.read_csv(os.path.join(directory,'non_comp_test_x.csv'))
+dataframe_val_y = pd.read_csv(os.path.join(directory, 'non_comp_test_y.csv'))
 
 batch_size = 50
 
@@ -35,8 +37,8 @@ max_len = 0
 input_ids = []
 attention_masks = []
 
-sentences = dataframe_x['Title'].values
-labels = dataframe_y['Genre'].values
+sentences = np.hstack((dataframe_x['Title'].values,  dataframe_val_x['Title'].values))
+labels = np.hstack((dataframe_y['Genre'].values, dataframe_val_y['Genre'].values))
 
 for sent in sentences:
 
@@ -56,7 +58,7 @@ val_size = len(dataset) - train_size
 
 train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-learning_rate = 1e-5
+learning_rate = 5e-5
 
 def ret_model():
     model = BertForSequenceClassification.from_pretrained(
@@ -215,12 +217,12 @@ for epoch_i in range(0, epochs):
 
     # Report the final accuracy for this validation run.
     avg_val_accuracy = total_eval_accuracy / len(validation_dataloader)
-    print("  Accuracy: {0:.2f}".format(avg_val_accuracy))
+    print("  Accuracy: {0:.9f}".format(avg_val_accuracy))
 
     # Calculate the average loss over all of the batches.
     avg_val_loss = total_eval_loss / len(validation_dataloader)
 
-    print("  Validation Loss: {0:.2f}".format(avg_val_loss))
+    print("  Validation Loss: {0:.9f}".format(avg_val_loss))
 
     # Record all statistics from this epoch.
     training_stats.append(
@@ -234,3 +236,70 @@ for epoch_i in range(0, epochs):
 
 print("")
 print("Training complete!")
+
+import csv
+
+dataframe_val_x = pd.read_csv(os.path.join(directory,'comp_test_x.csv'))
+
+input_ids = []
+attention_masks = []
+
+sentences = dataframe_val_x['Title'].values
+labels = dataframe_val_x['Id'].values
+
+for sent in sentences:
+
+    encoded_dict = tokenizer.encode_plus(sent,  add_special_tokens = True,  max_length = 64,  pad_to_max_length = True, return_attention_mask = True, return_tensors = 'pt')
+
+    input_ids.append(encoded_dict['input_ids'])
+    attention_masks.append(encoded_dict['attention_mask'])
+
+input_ids = torch.cat(input_ids, dim=0)
+attention_masks = torch.cat(attention_masks, dim=0)
+labels = torch.tensor(labels)
+
+dataset2 = TensorDataset(input_ids, attention_masks, labels)
+
+test_dataloader = DataLoader(
+            dataset2, # The validation samples.
+            sampler = SequentialSampler(dataset2), # Pull out batches sequentially.
+            batch_size = batch_size # Evaluate with this batch size.
+        )
+
+lis = []
+for batch in test_dataloader:
+    b_input_ids = batch[0].to(device)
+    b_input_mask = batch[1].to(device)
+    with torch.no_grad():        
+        outputs = model(b_input_ids, 
+                              token_type_ids=None, 
+                              attention_mask=b_input_mask,
+                              labels=None)
+        logits = outputs['logits']
+
+    # Accumulate the validation loss.
+    total_eval_loss += loss.item()
+
+    # Move logits and labels to CPU
+    logits = logits.detach().cpu().numpy()
+
+    # Calculate the accuracy for this batch of test sentences, and
+    # accumulate it over all batches.
+    pred_flat = np.argmax(logits, axis=1).flatten()
+    lis += pred_flat.tolist()
+
+predicted_vals = []
+iter = 0
+
+for x in lis:
+    predicted_vals.append((iter, x))
+    iter += 1
+
+header = ['Id','Genre']
+directory_out = '/kaggle/working/'
+with open(os.path.join(directory_out,'output.csv'), 'w') as f:
+    # create the csv writer
+    writer = csv.writer(f)
+    writer.writerow(header)
+    # write a row to the csv file
+    writer.writerows(predicted_vals)
