@@ -14,6 +14,7 @@ import tqdm
 from torchtext.data import get_tokenizer
 from torchtext import data
 import math
+import csv
 
 class TextLoader(Dataset):
     def __init__(self, dataframe_x, dataframe_y, sentence_length, embedding_dim):
@@ -50,10 +51,6 @@ class TextLoader(Dataset):
             idx = idx.tolist()
         
 #         textKey = self.dataframe_x.iloc[idx,2].to(device) 
-#         tokens = tokenizer(textKey).to(device)
-#         tokens = (tokens +[""] * (self.sentence_length-len(tokens))) if len(tokens)<self.sentence_length else tokens[:self.sentence_length]
-#         embeddings = glove.get_vecs_by_tokens(tokens).to(device)
-
         embeddings = self.embedded_x[idx].to(device)
         labelKey = self.dataframe_y.iloc[idx, 1]
         label = (torch.tensor(int(labelKey)).to(device))
@@ -65,7 +62,7 @@ def get_output_shape(model, input_dim):
     return model(rand_input)[0].shape
 
 sentence_length = 15
-batch_size = 20  
+batch_size = 200  
 embedding_dim = 300
 input_dim = 300 
 hidden_dim = 128 
@@ -117,7 +114,7 @@ for epoch in tqdm.tqdm(range(num_epochs)):
         loss.backward()
         optimizer.step()
 
-        if (i+1)%200 == 0:
+        if (i+1)%50 == 0:
             print(f'Epoch = {epoch}, Loss = {loss.item()}')
 
 # tokenizer = get_tokenizer("basic_english")
