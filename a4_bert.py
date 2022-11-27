@@ -30,7 +30,7 @@ dataframe_val_y = pd.read_csv(os.path.join(directory, 'non_comp_test_y.csv'))
 
 batch_size = 50
 
-tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
+tokenizer = AutoTokenizer.from_pretrained('bert-large-uncased')
 
 max_len = 0
 input_ids = []
@@ -61,7 +61,7 @@ learning_rate = 5e-5
 
 def ret_model():
     model = AutoModelForSequenceClassification.from_pretrained(
-        "bert-base-cased", 
+        'bert-large-uncased', 
         num_labels = 30, 
         output_attentions = False, 
         output_hidden_states = False,
