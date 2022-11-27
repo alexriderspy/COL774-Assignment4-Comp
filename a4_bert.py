@@ -93,7 +93,7 @@ def ret_dataloader():
 
 from transformers import get_linear_schedule_with_warmup
 
-num_epochs = 4
+num_epochs = 5
 
 def ret_scheduler(dataloader,optimizer):
     epochs = num_epochs
