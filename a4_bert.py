@@ -30,7 +30,7 @@ dataframe_val_y = pd.read_csv(os.path.join(directory, 'non_comp_test_y.csv'))
 
 batch_size = 50
 
-tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
+tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
 
 max_len = 0
 input_ids = []
@@ -93,7 +93,7 @@ def ret_dataloader():
 
 from transformers import get_linear_schedule_with_warmup
 
-num_epochs = 5
+num_epochs = 4
 
 def ret_scheduler(dataloader,optimizer):
     epochs = num_epochs
