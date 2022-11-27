@@ -15,14 +15,12 @@ from torchtext.data import get_tokenizer
 from torchtext import data
 import math
 from transformers import AutoTokenizer
-from transformers import AutoModelForSequenceClassification, AutoConfig
+from transformers import AutoModelForSequenceClassification, BertModel, AdamW, BertConfig
 import time
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data import TensorDataset, random_split
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = torch.device('cpu')
-
 
 directory = '/kaggle/input/col774-2022/'
 dataframe_x = pd.read_csv(os.path.join(directory,'train_x.csv'))
@@ -30,12 +28,10 @@ dataframe_y = pd.read_csv(os.path.join(directory, 'train_y.csv'))
 dataframe_val_x = pd.read_csv(os.path.join(directory,'non_comp_test_x.csv'))
 dataframe_val_y = pd.read_csv(os.path.join(directory, 'non_comp_test_y.csv'))
 
-batch_size = 50
+batch_size = 10
 
-tokenizer = AutoTokenizer.from_pretrained('gpt2')
-# tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-# tokenizer.pad_token = '[PAD]'
-tokenizer.pad_token_id = 0
+tokenizer = AutoTokenizer.from_pretrained('gpt2-large')
+tokenizer.pad_token = tokenizer.eos_token
 
 max_len = 0
 input_ids = []
@@ -45,7 +41,8 @@ sentences = np.hstack((dataframe_x['Title'].values,  dataframe_val_x['Title'].va
 labels = np.hstack((dataframe_y['Genre'].values, dataframe_val_y['Genre'].values))
 
 for sent in sentences:
-    encoded_dict = tokenizer.encode_plus(sent, add_special_tokens = True, max_length = 64, truncation=True, padding='max_length', return_attention_mask = True, return_tensors = 'pt')
+    
+    encoded_dict = tokenizer.encode_plus(sent,  add_special_tokens = True,  max_length = 64,  pad_to_max_length = True, return_attention_mask = True, return_tensors = 'pt')
 
     input_ids.append(encoded_dict['input_ids'])
     attention_masks.append(encoded_dict['attention_mask'])
@@ -65,7 +62,7 @@ learning_rate = 5e-5
 
 def ret_model():
     model = AutoModelForSequenceClassification.from_pretrained(
-        "gpt2", 
+        "gpt2-large", 
         num_labels = 30, 
         output_attentions = False, 
         output_hidden_states = False,
@@ -75,7 +72,7 @@ def ret_model():
 
 def ret_optim(model):
     print('Learning_rate = ',learning_rate )
-    optimizer = torch.optim.AdamW(model.parameters(),
+    optimizer = AdamW(model.parameters(),
                       lr = learning_rate, 
                       eps = 1e-8 
                     )
@@ -98,7 +95,7 @@ def ret_dataloader():
 
 from transformers import get_linear_schedule_with_warmup
 
-num_epochs = 5
+num_epochs = 4
 
 def ret_scheduler(dataloader,optimizer):
     epochs = num_epochs
@@ -116,8 +113,12 @@ def flat_accuracy(preds, labels):
 
 #training starts
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(device)
+
+
+
 model = ret_model()
+model.config.pad_token_id = model.config.eos_token_id
+
 model.to(device)
 #wandb.init(config=sweep_defaults)
 train_dataloader,validation_dataloader = ret_dataloader()
@@ -154,11 +155,11 @@ for epoch_i in range(0, epochs):
         b_input_ids = batch[0].to(device)
         b_input_mask = batch[1].to(device)
         b_labels = batch[2].to(device)
-        print(f'b_labels = {b_labels.shape}')
 
         model.zero_grad()        
 
         outputs = model(b_input_ids, 
+                            token_type_ids=None, 
                             attention_mask=b_input_mask, 
                             labels=b_labels)
         loss, logits = outputs['loss'], outputs['logits']
@@ -202,6 +203,7 @@ for epoch_i in range(0, epochs):
         b_labels = batch[2].to(device)
         with torch.no_grad():        
             outputs = model(b_input_ids, 
+                                  token_type_ids=None, 
                                   attention_mask=b_input_mask,
                                   labels=b_labels)
             loss, logits = outputs['loss'], outputs['logits']
@@ -239,69 +241,3 @@ for epoch_i in range(0, epochs):
 
 print("")
 print("Training complete!")
-
-import csv
-
-dataframe_val_x = pd.read_csv(os.path.join(directory,'comp_test_x.csv'))
-
-input_ids = []
-attention_masks = []
-
-sentences = dataframe_val_x['Title'].values
-labels = dataframe_val_x['Id'].values
-
-for sent in sentences:
-    encoded_dict = tokenizer.encode_plus(sent, add_special_tokens = True, max_length = 64, truncation=True, padding='max_length', return_attention_mask = True, return_tensors = 'pt')
-
-
-    input_ids.append(encoded_dict['input_ids'])
-    attention_masks.append(encoded_dict['attention_mask'])
-
-input_ids = torch.cat(input_ids, dim=0)
-attention_masks = torch.cat(attention_masks, dim=0)
-labels = torch.tensor(labels)
-
-dataset2 = TensorDataset(input_ids, attention_masks, labels)
-
-test_dataloader = DataLoader(
-            dataset2, # The validation samples.
-            sampler = SequentialSampler(dataset2), # Pull out batches sequentially.
-            batch_size = batch_size # Evaluate with this batch size.
-        )
-
-lis = []
-for batch in test_dataloader:
-    b_input_ids = batch[0].to(device)
-    b_input_mask = batch[1].to(device)
-    with torch.no_grad():        
-        outputs = model(b_input_ids, 
-                              attention_mask=b_input_mask,
-                              labels=None)
-        logits = outputs['logits']
-
-    # Accumulate the validation loss.
-    total_eval_loss += loss.item()
-
-    # Move logits and labels to CPU
-    logits = logits.detach().cpu().numpy()
-
-    # Calculate the accuracy for this batch of test sentences, and
-    # accumulate it over all batches.
-    pred_flat = np.argmax(logits, axis=1).flatten()
-    lis += pred_flat.tolist()
-
-predicted_vals = []
-iter = 0
-
-for x in lis:
-    predicted_vals.append((iter, x))
-    iter += 1
-
-header = ['Id','Genre']
-directory_out = '/kaggle/working/'
-with open(os.path.join(directory_out,'output.csv'), 'w') as f:
-    # create the csv writer
-    writer = csv.writer(f)
-    writer.writerow(header)
-    # write a row to the csv file
-    writer.writerows(predicted_vals)
