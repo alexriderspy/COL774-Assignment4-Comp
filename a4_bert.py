@@ -14,8 +14,8 @@ import tqdm
 from torchtext.data import get_tokenizer
 from torchtext import data
 import math
-from transformers import BertTokenizer
-from transformers import BertForSequenceClassification, AdamW, BertConfig
+from transformers import AutoTokenizer
+from transformers import AutoModelForSequenceClassification, AutoConfig
 import time
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data import TensorDataset, random_split
@@ -30,8 +30,7 @@ dataframe_val_y = pd.read_csv(os.path.join(directory, 'non_comp_test_y.csv'))
 
 batch_size = 50
 
-
-tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
 
 max_len = 0
 input_ids = []
@@ -61,7 +60,7 @@ train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 learning_rate = 5e-5
 
 def ret_model():
-    model = BertForSequenceClassification.from_pretrained(
+    model = AutoModelForSequenceClassification.from_pretrained(
         "bert-base-cased", 
         num_labels = 30, 
         output_attentions = False, 
@@ -71,7 +70,7 @@ def ret_model():
 
 def ret_optim(model):
     print('Learning_rate = ',learning_rate )
-    optimizer = AdamW(model.parameters(),
+    optimizer = torch.optim.AdamW(model.parameters(),
                       lr = learning_rate, 
                       eps = 1e-8 
                     )
