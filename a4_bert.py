@@ -15,7 +15,7 @@ from torchtext.data import get_tokenizer
 from torchtext import data
 import math
 from transformers import BertTokenizer
-from transformers import BertForSequenceClassification, AdamW, BertConfig
+from transformers import BertForSequenceClassification, BertModel, AdamW, BertConfig
 import time
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data import TensorDataset, random_split
@@ -30,8 +30,7 @@ dataframe_val_y = pd.read_csv(os.path.join(directory, 'non_comp_test_y.csv'))
 
 batch_size = 50
 
-
-tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
 
 max_len = 0
 input_ids = []
@@ -62,7 +61,7 @@ learning_rate = 5e-5
 
 def ret_model():
     model = BertForSequenceClassification.from_pretrained(
-        "bert-base-cased", 
+        "bert-large-uncased", 
         num_labels = 30, 
         output_attentions = False, 
         output_hidden_states = False,
@@ -94,7 +93,7 @@ def ret_dataloader():
 
 from transformers import get_linear_schedule_with_warmup
 
-num_epochs = 5
+num_epochs = 4
 
 def ret_scheduler(dataloader,optimizer):
     epochs = num_epochs
