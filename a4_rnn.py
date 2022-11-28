@@ -62,7 +62,7 @@ def get_output_shape(model, input_dim):
     return model(rand_input)[0].shape
 
 sentence_length = 15
-batch_size = 200  
+batch_size = 20 
 embedding_dim = 300
 input_dim = 300 
 hidden_dim = 128 
@@ -114,7 +114,7 @@ for epoch in tqdm.tqdm(range(num_epochs)):
         loss.backward()
         optimizer.step()
 
-        if (i+1)%50 == 0:
+        if (i+1)%500 == 0:
             print(f'Epoch = {epoch}, Loss = {loss.item()}')
 
 # tokenizer = get_tokenizer("basic_english")
